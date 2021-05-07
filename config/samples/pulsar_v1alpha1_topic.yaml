@@ -6,3 +6,5 @@ spec:
   # Add fields here
   tenant: apache
   namespace: pulsar
+  domain: non-persistent
+  partitions: 5

@@ -44,6 +44,12 @@ type TopicSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Namespace string `json:"namespace,omitempty"`
+
+	// +kubebuilder:default=persistent
+	Domain string `json:"domain,omitempty"`
+
+	// +kubebuilder:default=0
+	Partitions int `json:"partitions"`
 }
 
 // TopicStatus defines the observed state of Topic
@@ -58,6 +64,8 @@ type TopicStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Tenant",type=string,JSONPath=`.spec.tenant`,description="Pulsar cluster tenant"
 //+kubebuilder:printcolumn:name="Namespace",type=string,JSONPath=`.spec.namespace`,description="Pulsar cluster namespace"
+//+kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domain`,description="Pulsar cluster domain"
+//+kubebuilder:printcolumn:name="Partitions",type=string,JSONPath=`.spec.partitions`,description="Pulsar cluster partitions"
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.state`,description="Topic sync status"
 
 // Topic is the Schema for the topics API
@@ -70,7 +78,14 @@ type Topic struct {
 }
 
 func (t *Topic) GetFQTopicName() utils.TopicName {
-	tn, _ := utils.GetTopicName(fmt.Sprintf("%s/%s/%s", t.Spec.Tenant, t.Spec.Namespace, t.GetName()))
+	var domain string
+	if t.Spec.Domain == "" {
+		domain = "persistent://"
+	} else {
+		domain = t.Spec.Domain + "://"
+	}
+
+	tn, _ := utils.GetTopicName(fmt.Sprintf("%s%s/%s/%s", domain, t.Spec.Tenant, t.Spec.Namespace, t.GetName()))
 	return *tn
 }
 
