@@ -17,29 +17,47 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
+	"github.com/streamnative/pulsarctl/pkg/pulsar/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const (
+	TopicStateUnknown   string = "Unknown"
+	TopicStateSynced    string = "Synced"
+	TopicStateOutOfSync string = "OutOfSync"
+)
+
 // TopicSpec defines the desired state of Topic
 type TopicSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Topic. Edit topic_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Tenant string `json:"tenant,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // TopicStatus defines the observed state of Topic
 type TopicStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Enum=Unknown;Synced;OutOfSync
+	State string `json:"state,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Tenant",type=string,JSONPath=`.spec.tenant`,description="Pulsar cluster tenant"
+//+kubebuilder:printcolumn:name="Namespace",type=string,JSONPath=`.spec.namespace`,description="Pulsar cluster namespace"
 
 // Topic is the Schema for the topics API
 type Topic struct {
@@ -48,6 +66,11 @@ type Topic struct {
 
 	Spec   TopicSpec   `json:"spec,omitempty"`
 	Status TopicStatus `json:"status,omitempty"`
+}
+
+func (t *Topic) GetFQTopicName() utils.TopicName {
+	tn, _ := utils.GetTopicName(fmt.Sprintf("%s/%s/%s", t.Spec.Tenant, t.Spec.Namespace, t.GetName()))
+	return *tn
 }
 
 //+kubebuilder:object:root=true

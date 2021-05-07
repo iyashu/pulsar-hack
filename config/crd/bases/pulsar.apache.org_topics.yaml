@@ -16,7 +16,16 @@ spec:
     singular: topic
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Pulsar cluster tenant
+      jsonPath: .spec.tenant
+      name: Tenant
+      type: string
+    - description: Pulsar cluster namespace
+      jsonPath: .spec.namespace
+      name: Namespace
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Topic is the Schema for the topics API
@@ -36,13 +45,25 @@ spec:
           spec:
             description: TopicSpec defines the desired state of Topic
             properties:
-              foo:
-                description: Foo is an example field of Topic. Edit topic_types.go
-                  to remove/update
+              namespace:
+                minLength: 1
+                type: string
+              tenant:
+                minLength: 1
                 type: string
             type: object
           status:
             description: TopicStatus defines the observed state of Topic
+            properties:
+              state:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                enum:
+                - Unknown
+                - Synced
+                - OutOfSync
+                type: string
             type: object
         type: object
     served: true

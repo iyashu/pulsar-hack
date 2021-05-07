@@ -18,11 +18,15 @@ package controllers
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/go-logr/logr"
+	"github.com/streamnative/pulsarctl/pkg/cli"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	pulsarv1alpha1 "github.com/iyashu/pulsar-hack/api/v1alpha1"
 )
@@ -32,7 +36,11 @@ type TopicReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+
+	Pulsar *PulsarClient
 }
+
+const TopicFinalizer = "pulsar.apache.org/topic-finalizer"
 
 //+kubebuilder:rbac:groups=pulsar.apache.org,resources=topics,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=pulsar.apache.org,resources=topics/status,verbs=get;update;patch
@@ -48,9 +56,89 @@ type TopicReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *TopicReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("topic", req.NamespacedName)
+	log := r.Log.WithValues("topic", req.NamespacedName)
+	log.Info("reconciling pulsar topic")
 
-	// your logic here
+	topic := &pulsarv1alpha1.Topic{}
+	err := r.Get(ctx, req.NamespacedName, topic)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			log.Info("topic resource not found. Ignoring since object must be deleted")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		log.Error(err, "failed to get topic resource")
+		return ctrl.Result{}, err
+	}
+
+	// Check if the Topic instance is marked to be deleted, which is
+	// indicated by the deletion timestamp being set.
+	markedAsDeleted := topic.GetDeletionTimestamp() != nil
+	if markedAsDeleted {
+		if controllerutil.ContainsFinalizer(topic, TopicFinalizer) {
+			// Run finalization logic for topicFinalizer. If the
+			// finalization logic fails, don't remove the finalizer so
+			// that we can retry during the next reconciliation.
+			if err := r.finalizeTopic(log, topic); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// Remove topicFinalizer. Once all finalizers have been
+			// removed, the object will be deleted.
+			controllerutil.RemoveFinalizer(topic, TopicFinalizer)
+			err := r.Update(ctx, topic)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer for this CR
+	if !controllerutil.ContainsFinalizer(topic, TopicFinalizer) {
+		controllerutil.AddFinalizer(topic, TopicFinalizer)
+		err = r.Update(ctx, topic)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Check if the topic already exists, if not create a new one.
+	found, err := r.lookupTopic(topic)
+	if err != nil {
+		log.Error(err, "failed to get pulsar topic")
+		return ctrl.Result{}, err
+	} else if !found {
+		if topic.Status.State != pulsarv1alpha1.TopicStateOutOfSync {
+			topic.Status.State = pulsarv1alpha1.TopicStateOutOfSync
+			if updateErr := r.Status().Update(ctx, topic); updateErr != nil {
+				log.Error(updateErr, "failed to update k8s topic resource")
+				return ctrl.Result{}, updateErr
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		// create a new topic
+		tn := topic.GetFQTopicName()
+		log.Info("creating pulsar topic", "name", tn)
+		if createErr := r.Pulsar.Topics().Create(tn, 0); createErr != nil {
+			log.Error(createErr, "failed to create pulsar topic")
+			return ctrl.Result{}, createErr
+		}
+		// topic created successfully - return and requeue
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if topic.Status.State != pulsarv1alpha1.TopicStateSynced {
+		topic.Status.State = pulsarv1alpha1.TopicStateSynced
+		if updateErr := r.Status().Update(ctx, topic); updateErr != nil {
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -60,4 +148,21 @@ func (r *TopicReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&pulsarv1alpha1.Topic{}).
 		Complete(r)
+}
+
+func (r *TopicReconciler) finalizeTopic(log logr.Logger, topic *pulsarv1alpha1.Topic) error {
+	log.Info("deleting topic from pulsar cluster")
+	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, false)
+}
+
+func (r *TopicReconciler) lookupTopic(topic *pulsarv1alpha1.Topic) (bool, error) {
+	tn := topic.GetFQTopicName()
+	_, err := r.Pulsar.Topics().Lookup(tn)
+	if err != nil {
+		if cliErr, ok := err.(cli.Error); ok && cliErr.Code == http.StatusNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
