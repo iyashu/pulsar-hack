@@ -123,7 +123,7 @@ func (r *TopicReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		// create a new topic
 		tn := topic.GetFQTopicName()
 		log.Info("creating pulsar topic", "name", tn)
-		if createErr := r.Pulsar.Topics().Create(tn, 0); createErr != nil {
+		if createErr := r.Pulsar.Topics().Create(tn, topic.Spec.Partitions); createErr != nil {
 			log.Error(createErr, "failed to create pulsar topic")
 			return ctrl.Result{}, createErr
 		}
@@ -160,7 +160,7 @@ func (r *TopicReconciler) finalizeTopic(log logr.Logger, topic *pulsarv1alpha1.T
 		log.Info("pulsar topic doesn't exist, no actions are required")
 		return nil
 	}
-	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, true)
+	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, topic.Spec.Partitions == 0)
 }
 
 func (r *TopicReconciler) lookupTopic(log logr.Logger, topic *pulsarv1alpha1.Topic) (bool, error) {
@@ -175,7 +175,13 @@ func (r *TopicReconciler) lookupTopic(log logr.Logger, topic *pulsarv1alpha1.Top
 	}
 	log.Info("topics listed", "partitioned", p, "non-partitioned", np)
 	expectedTopicFQName := topic.GetFQTopicName()
-	for _, v := range np {
+	var topicList []string
+	if topic.Spec.Partitions == 0 {
+		topicList = np
+	} else {
+		topicList = p
+	}
+	for _, v := range topicList {
 		tn, err := utils.GetTopicName(v)
 		if err != nil {
 			log.Error(err, "failed to parse topic fqdn", "name", v)
