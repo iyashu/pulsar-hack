@@ -58,6 +58,7 @@ type TopicStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Tenant",type=string,JSONPath=`.spec.tenant`,description="Pulsar cluster tenant"
 //+kubebuilder:printcolumn:name="Namespace",type=string,JSONPath=`.spec.namespace`,description="Pulsar cluster namespace"
+//+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.state`,description="Topic sync status"
 
 // Topic is the Schema for the topics API
 type Topic struct {

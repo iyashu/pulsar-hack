@@ -18,10 +18,9 @@ package controllers
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/go-logr/logr"
-	"github.com/streamnative/pulsarctl/pkg/cli"
+	"github.com/streamnative/pulsarctl/pkg/pulsar/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -107,7 +106,7 @@ func (r *TopicReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// Check if the topic already exists, if not create a new one.
-	found, err := r.lookupTopic(topic)
+	found, err := r.lookupTopic(log, topic)
 	if err != nil {
 		log.Error(err, "failed to get pulsar topic")
 		return ctrl.Result{}, err
@@ -151,18 +150,32 @@ func (r *TopicReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *TopicReconciler) finalizeTopic(log logr.Logger, topic *pulsarv1alpha1.Topic) error {
-	log.Info("deleting topic from pulsar cluster")
-	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, false)
+	log.Info("deleting topic from pulsar cluster", "fqdn", topic.GetFQTopicName())
+	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, true)
 }
 
-func (r *TopicReconciler) lookupTopic(topic *pulsarv1alpha1.Topic) (bool, error) {
-	tn := topic.GetFQTopicName()
-	_, err := r.Pulsar.Topics().Lookup(tn)
+func (r *TopicReconciler) lookupTopic(log logr.Logger, topic *pulsarv1alpha1.Topic) (bool, error) {
+	ns, err := utils.GetNameSpaceName(topic.Spec.Tenant, topic.Spec.Namespace)
 	if err != nil {
-		if cliErr, ok := err.(cli.Error); ok && cliErr.Code == http.StatusNotFound {
-			return false, nil
-		}
 		return false, err
 	}
-	return true, nil
+
+	p, np, err := r.Pulsar.Topics().List(*ns)
+	if err != nil {
+		return false, err
+	}
+	log.Info("topics listed", "partitioned", p, "non-partitioned", np)
+	expectedTopicFQName := topic.GetFQTopicName()
+	for _, v := range np {
+		tn, err := utils.GetTopicName(v)
+		if err != nil {
+			log.Error(err, "failed to parse topic fqdn", "name", v)
+			return false, err
+		}
+		if expectedTopicFQName.String() == tn.String() {
+			log.Info("topic already exists", "fqdn", tn.String())
+			return true, nil
+		}
+	}
+	return false, nil
 }

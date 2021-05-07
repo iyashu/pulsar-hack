@@ -1,7 +1,8 @@
 apiVersion: pulsar.apache.org/v1alpha1
 kind: Topic
 metadata:
-  name: topic-sample
+  name: test-xyz
 spec:
   # Add fields here
-  foo: bar
+  tenant: apache
+  namespace: pulsar

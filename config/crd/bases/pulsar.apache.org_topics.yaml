@@ -25,6 +25,10 @@ spec:
       jsonPath: .spec.namespace
       name: Namespace
       type: string
+    - description: Topic sync status
+      jsonPath: .status.state
+      name: Status
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
