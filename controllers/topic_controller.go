@@ -151,6 +151,15 @@ func (r *TopicReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *TopicReconciler) finalizeTopic(log logr.Logger, topic *pulsarv1alpha1.Topic) error {
 	log.Info("deleting topic from pulsar cluster", "fqdn", topic.GetFQTopicName())
+	found, err := r.lookupTopic(log, topic)
+	if err != nil {
+		log.Error(err, "failed to get pulsar topic")
+		return err
+	}
+	if !found {
+		log.Info("pulsar topic doesn't exist, no actions are required")
+		return nil
+	}
 	return r.Pulsar.Topics().Delete(topic.GetFQTopicName(), false, true)
 }
 
