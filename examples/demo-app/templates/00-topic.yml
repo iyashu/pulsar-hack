@@ -1,0 +1,11 @@
+---
+apiVersion: pulsar.apache.org/v1alpha1
+kind: Topic
+metadata:
+  name: {{ .Values.pulsarTopicName }}
+spec:
+  # Add fields here
+  tenant: {{ .Values.pulsarTopicTenant }}
+  namespace: {{ .Values.pulsarTopicNamespace }}
+  domain: {{ .Values.pulsarTopicDomain }}
+  partitions: 0
