@@ -15,7 +15,7 @@ spec:
         app: producer
     spec:
       containers:
-      - name: pulsar-producer
-        image: abhisaini/pulsar_producer
+      - name: producer
+        image: abhishekfk/pproducer
         ports:
         - containerPort: 80

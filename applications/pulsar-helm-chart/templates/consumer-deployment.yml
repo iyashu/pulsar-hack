@@ -15,7 +15,8 @@ spec:
         app: consumer
     spec:
       containers:
-      - name: pulsar-consumer
-        image: abhisaini/pulsar_consumer
+      - name: consumer
+        image: abhishekfk/pconsumer
         ports:
         - containerPort: 80
+      topics:
