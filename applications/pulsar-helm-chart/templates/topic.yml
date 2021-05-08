@@ -1,0 +1,9 @@
+apiVersion: pulsar.apache.org/v1alpha1
+kind: Topic
+metadata:
+  name: test-xyz
+spec:
+  tenant: apache
+  namespace: pulsar
+  domain: non-persistent
+  partitions: 5
