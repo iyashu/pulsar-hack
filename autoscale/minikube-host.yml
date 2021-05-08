@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minikube-host
+  namespace: default
+  labels:
+    app: minikube-host
+spec:
+  selector:
+    app: minikube-host
+  clusterIP: None
+  ports:
+  - port: 8080
+    name: pulsar-admin
+  - port: 6650
+    name: pulsar-broker
+#  - name: app
+#    port: 8082 # doesn't actually matter
+
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: minikube-host
+subsets:
+  - addresses:
+      - ip: 192.168.65.2 # command below will update this if needed
+    ports:
+      - port: 8080
+        name: pulsar-admin
+      - port: 6650
+        name: pulsar-broker
