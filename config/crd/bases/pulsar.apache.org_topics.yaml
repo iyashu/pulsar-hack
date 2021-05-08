@@ -25,6 +25,18 @@ spec:
       jsonPath: .spec.namespace
       name: Namespace
       type: string
+    - description: Pulsar cluster domain
+      jsonPath: .spec.domain
+      name: Domain
+      type: string
+    - description: Pulsar cluster partitions
+      jsonPath: .spec.partitions
+      name: Partitions
+      type: string
+    - description: Topic sync status
+      jsonPath: .status.state
+      name: Status
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -45,12 +57,20 @@ spec:
           spec:
             description: TopicSpec defines the desired state of Topic
             properties:
+              domain:
+                default: persistent
+                type: string
               namespace:
                 minLength: 1
                 type: string
+              partitions:
+                default: 0
+                type: integer
               tenant:
                 minLength: 1
                 type: string
+            required:
+            - partitions
             type: object
           status:
             description: TopicStatus defines the observed state of Topic

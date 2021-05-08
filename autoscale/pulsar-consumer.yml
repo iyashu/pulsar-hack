@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulsar-consumer-cfg
+  namespace: default
+data:
+#  BOOKIE_LOG_APPENDER: RollingFile
+  PULSAR_MEM: |
+    -Xms64M -Xmx128M -XX:MaxDirectMemorySize=128M
+  brokerServiceUrl: pulsar://minikube-host.default.svc.cluster.local:6650/
+#  httpServerEnabled: "true"
+#  httpServerPort: "8000"
+#  statsProviderClass: org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+#  useHostNameAsBookieID: "true"
+  webServiceUrl: http://minikube-host.default.svc.cluster.local:8080/
+#  zkLedgersRootPath: /ledgers
+#  zkServers: pulsar-mini-zookeeper:2181
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulsar-consumer
+  namespace: default
+  labels:
+    app: pulsar-consumer
+spec:
+  selector:
+    matchLabels:
+      app: pulsar-consumer
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pulsar-consumer
+    spec:
+      containers:
+      - args:
+        - |
+          bin/apply-config-from-env.py conf/client.conf; bin/apply-config-from-env.py conf/bookkeeper.conf;
+          bin/pulsar-perf consume persistent://apache/pulsar/test-xyz --rate 1 --subscription-type Shared --subscriber-name sub --subscription-position Earliest --receiver-queue-size 1 --receiver-queue-size-across-partitions 1
+        command:
+        - sh
+        - -c
+        envFrom:
+        - configMapRef:
+            name: pulsar-consumer-cfg
+        image: apachepulsar/pulsar-all:2.7.1
+        imagePullPolicy: IfNotPresent
+        name: pulsar-consumer
+        resources:
+          requests:
+            cpu: 25m
+            memory: 128Mi

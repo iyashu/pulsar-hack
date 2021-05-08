@@ -1,0 +1,36 @@
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: api-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pulsar-consumer
+  pollingInterval: 10
+  cooldownPeriod:  300
+  minReplicaCount: 1
+  maxReplicaCount: 10
+
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 30
+          policies:
+          - type: Percent
+            value: 20
+            periodSeconds: 15
+  triggers:
+  - type: external
+    metadata:
+      scalerAddress: pulsar-scaler:9898
+      adminURL: http://minikube-host.default.svc.cluster.local:8080
+#      scalerAddress: minikube-host.default.svc.cluster.local:9898
+#      adminURL: http://127.0.0.1:8080
+      topic: persistent://apache/pulsar/test-xyz
+      subscription: sub
+      lagThreshold: "10"
